@@ -4,11 +4,15 @@
 
 _pkgname=pytorch
 pkgbase="python-${_pkgname}"
-pkgname=("${pkgbase}" "${pkgbase}-opt" "${pkgbase}-cuda" "${pkgbase}-opt-cuda" "${pkgbase}-rocm" "${pkgbase}-opt-rocm")
+pkgname=(
+  #"${pkgbase}" "${pkgbase}-opt"
+  "${pkgbase}-cuda"
+  #"${pkgbase}-opt-cuda" "${pkgbase}-rocm" "${pkgbase}-opt-rocm"
+)
 # When updating pytorch, also check the compatibility table for torchvision
 # https://github.com/pytorch/vision?tab=readme-ov-file#installation
 pkgver=2.5.1
-pkgrel=7
+pkgrel=8
 _pkgdesc='Tensors and Dynamic neural networks in Python with strong GPU acceleration'
 pkgdesc="${_pkgdesc}"
 arch=('x86_64')
@@ -21,7 +25,10 @@ depends=('google-glog' 'gflags' 'opencv' 'openmp' 'openmpi' 'pybind11' 'python' 
 # https://github.com/ROCm/aotriton/blob/main/requirements-dev.txt
 _aotriton_deps=('python-iniconfig' 'python-packaging' 'python-pluggy' 'python-wheel' 'python-tqdm' 'python-textual')
 makedepends=('python' 'python-setuptools' 'python-yaml' 'python-numpy' 'cmake' 'cuda' 'gcc13'
-             'nccl' 'cudnn' 'git' 'rocm-hip-sdk' 'hipblaslt' 'roctracer' 'miopen-hip' 'magma-cuda' 'magma-hip'
+             'nccl' 'cudnn' 'git'
+             #'rocm-hip-sdk' 'hipblaslt' 'roctracer' 'miopen-hip'
+             #'magma-hip'
+             'magma-cuda'
              'ninja' 'pkgconfig' 'doxygen' 'vulkan-headers' 'shaderc' 'onednn' "${_aotriton_deps[@]}")
 source=("${_pkgname}::git+https://github.com/pytorch/pytorch.git#tag=v$pkgver"
         # generated using parse-submodules
@@ -168,6 +175,8 @@ prepare() {
 
   git -c protocol.file.allow=always submodule update --init --recursive
 
+  git checkout -- "*"
+  set -x
   # Fix cmake prefix path (FS#78665)
   patch -Np1 -i "${srcdir}"/fix_cmake_prefix_path.patch
 
@@ -184,7 +193,9 @@ prepare() {
   patch -p1 -i "${srcdir}/glog-0.7.patch"
 
   # Disable -Werror
+  git -C third_party/fbgemm checkout -- "*"
   patch -Np1 -d third_party/fbgemm -i "${srcdir}/disable-werror1.patch"
+  git -C third_party/benchmark checkout -- "*"
   patch -Np1 -d third_party/benchmark -i "${srcdir}/disable-werror2.patch"
   patch -Np1 -i "${srcdir}/disable-werror4.patch"
 
@@ -200,11 +211,14 @@ prepare() {
 
   cd "${srcdir}"
 
-  cp -r "${_pkgname}" "${_pkgname}-opt"
-  cp -r "${_pkgname}" "${_pkgname}-cuda"
-  cp -r "${_pkgname}" "${_pkgname}-opt-cuda"
-  cp -r "${_pkgname}" "${_pkgname}-rocm"
-  cp -r "${_pkgname}" "${_pkgname}-opt-rocm"
+  #cp -r "${_pkgname}" "${_pkgname}-opt"
+  #cp -r "${_pkgname}" "${_pkgname}-cuda"
+  rm -fr "${_pkgname}-cuda"
+  ln -s "${_pkgname}" "${_pkgname}-cuda"
+  #cp -r "${_pkgname}" "${_pkgname}-opt-cuda"
+  #cp -r "${_pkgname}" "${_pkgname}-rocm"
+  #cp -r "${_pkgname}" "${_pkgname}-opt-rocm"
+  set -x
 }
 
 # Common build configuration, called in all package() functions.
@@ -267,27 +281,27 @@ _prepare() {
 }
 
 build() {
-  cd "${srcdir}/${_pkgname}"
-  echo "Building without cuda or rocm and without non-x86-64 optimizations"
-  _prepare
-  export USE_CUDA=0
-  export USE_CUDNN=0
-  export USE_ROCM=0
-  echo "add_definitions(-march=x86-64)" >> cmake/MiscCheck.cmake
-  # this horrible hack is necessary because the current release
-  # ships inconsistent CMake which tries to build objects before
-  # their dependencies, build twice when dependencies are available
-  python setup.py build || python setup.py build
+  #cd "${srcdir}/${_pkgname}"
+  #echo "Building without cuda or rocm and without non-x86-64 optimizations"
+  #_prepare
+  #export USE_CUDA=0
+  #export USE_CUDNN=0
+  #export USE_ROCM=0
+  #echo "add_definitions(-march=x86-64)" >> cmake/MiscCheck.cmake
+  ## this horrible hack is necessary because the current release
+  ## ships inconsistent CMake which tries to build objects before
+  ## their dependencies, build twice when dependencies are available
+  #python setup.py build || python setup.py build
 
-  cd "${srcdir}/${_pkgname}-opt"
-  echo "Building without cuda or rocm and with non-x86-64 optimizations"
-  _prepare
-  export USE_CUDA=0
-  export USE_CUDNN=0
-  export USE_ROCM=0
-  echo "add_definitions(-march=x86-64-v3)" >> cmake/MiscCheck.cmake
-  # same horrible hack as above
-  python setup.py build || python setup.py build
+  #cd "${srcdir}/${_pkgname}-opt"
+  #echo "Building without cuda or rocm and with non-x86-64 optimizations"
+  #_prepare
+  #export USE_CUDA=0
+  #export USE_CUDNN=0
+  #export USE_ROCM=0
+  #echo "add_definitions(-march=x86-64-v3)" >> cmake/MiscCheck.cmake
+  ## same horrible hack as above
+  #python setup.py build || python setup.py build
 
   cd "${srcdir}/${_pkgname}-cuda"
   echo "Building with cuda and without non-x86-64 optimizations"
@@ -301,47 +315,47 @@ build() {
   # same horrible hack as above
   python setup.py build || python setup.py build
 
-  cd "${srcdir}/${_pkgname}-opt-cuda"
-  echo "Building with cuda and with non-x86-64 optimizations"
-  export USE_CUDA=1
-  export USE_CUDNN=1
-  export USE_ROCM=0
-  export MAGMA_HOME=/opt/cuda/targets/x86_64-linux
-  _prepare
-  echo "add_definitions(-march=x86-64-v3)" >> cmake/MiscCheck.cmake
-  # same horrible hack as above
-  python setup.py build || python setup.py build
+  #cd "${srcdir}/${_pkgname}-opt-cuda"
+  #echo "Building with cuda and with non-x86-64 optimizations"
+  #export USE_CUDA=1
+  #export USE_CUDNN=1
+  #export USE_ROCM=0
+  #export MAGMA_HOME=/opt/cuda/targets/x86_64-linux
+  #_prepare
+  #echo "add_definitions(-march=x86-64-v3)" >> cmake/MiscCheck.cmake
+  ## same horrible hack as above
+  #python setup.py build || python setup.py build
 
-  cd "${srcdir}/${_pkgname}-rocm"
-  echo "Building with rocm and without non-x86-64 optimizations"
-  # -fcf-protection is not supported by HIP, see
-  # https://rocm.docs.amd.com/projects/llvm-project/en/latest/reference/rocmcc.html#support-status-of-other-clang-options
-  CXXFLAGS+=" -fcf-protection=none"
-  _prepare
-  export USE_CUDA=0
-  export USE_CUDNN=0
-  export USE_ROCM=1
-  export MAGMA_HOME=/opt/rocm
-  echo "add_definitions(-march=x86-64)" >> cmake/MiscCheck.cmake
-  # Conversion of CUDA to ROCm source files
-  python tools/amd_build/build_amd.py
-  patch -Np1 -i "$srcdir/pytorch-rocm-jit.patch"
-  # same horrible hack as above
-  python setup.py build || python setup.py build
+  #cd "${srcdir}/${_pkgname}-rocm"
+  #echo "Building with rocm and without non-x86-64 optimizations"
+  ## -fcf-protection is not supported by HIP, see
+  ## https://rocm.docs.amd.com/projects/llvm-project/en/latest/reference/rocmcc.html#support-status-of-other-clang-options
+  #CXXFLAGS+=" -fcf-protection=none"
+  #_prepare
+  #export USE_CUDA=0
+  #export USE_CUDNN=0
+  #export USE_ROCM=1
+  #export MAGMA_HOME=/opt/rocm
+  #echo "add_definitions(-march=x86-64)" >> cmake/MiscCheck.cmake
+  ## Conversion of CUDA to ROCm source files
+  #python tools/amd_build/build_amd.py
+  #patch -Np1 -i "$srcdir/pytorch-rocm-jit.patch"
+  ## same horrible hack as above
+  #python setup.py build || python setup.py build
   
-  cd "${srcdir}/${_pkgname}-opt-rocm"
-  echo "Building with rocm and with non-x86-64 optimizations"
-  _prepare
-  export USE_CUDA=0
-  export USE_CUDNN=0
-  export USE_ROCM=1
-  export MAGMA_HOME=/opt/rocm
-  echo "add_definitions(-march=x86-64-v3)" >> cmake/MiscCheck.cmake
-  # Conversion of CUDA to ROCm source files
-  python tools/amd_build/build_amd.py
-  patch -Np1 -i "$srcdir/pytorch-rocm-jit.patch"
-  # same horrible hack as above
-  python setup.py build || python setup.py build
+  #cd "${srcdir}/${_pkgname}-opt-rocm"
+  #echo "Building with rocm and with non-x86-64 optimizations"
+  #_prepare
+  #export USE_CUDA=0
+  #export USE_CUDNN=0
+  #export USE_ROCM=1
+  #export MAGMA_HOME=/opt/rocm
+  #echo "add_definitions(-march=x86-64-v3)" >> cmake/MiscCheck.cmake
+  ## Conversion of CUDA to ROCm source files
+  #python tools/amd_build/build_amd.py
+  #patch -Np1 -i "$srcdir/pytorch-rocm-jit.patch"
+  ## same horrible hack as above
+  #python setup.py build || python setup.py build
 }
 
 _package() {
@@ -374,21 +388,21 @@ _package() {
   done
 }
 
-package_python-pytorch() {
-  pkgdesc="${_pkgdesc}"
+#package_python-pytorch() {
+#  pkgdesc="${_pkgdesc}"
 
-  cd "${srcdir}/${_pkgname}"
-  _package
-}
+#  cd "${srcdir}/${_pkgname}"
+#  _package
+#}
 
-package_python-pytorch-opt() {
-  pkgdesc="${_pkgdesc} (with AVX2 CPU optimizations)"
-  conflicts=(python-pytorch)
-  provides=(python-pytorch=${pkgver})
+#package_python-pytorch-opt() {
+#  pkgdesc="${_pkgdesc} (with AVX2 CPU optimizations)"
+#  conflicts=(python-pytorch)
+#  provides=(python-pytorch=${pkgver})
 
-  cd "${srcdir}/${_pkgname}-opt"
-  _package
-}
+#  cd "${srcdir}/${_pkgname}-opt"
+#  _package
+#}
 
 package_python-pytorch-cuda() {
   pkgdesc="${_pkgdesc} (with CUDA)"
@@ -400,34 +414,34 @@ package_python-pytorch-cuda() {
   _package
 }
 
-package_python-pytorch-opt-cuda() {
-  pkgdesc="${_pkgdesc} (with CUDA and AVX2 CPU optimizations)"
-  depends+=(cuda nccl cudnn magma-cuda onednn)
-  conflicts=(python-pytorch)
-  provides=(python-pytorch=${pkgver} python-pytorch-cuda=${pkgver})
+#package_python-pytorch-opt-cuda() {
+#  pkgdesc="${_pkgdesc} (with CUDA and AVX2 CPU optimizations)"
+#  depends+=(cuda nccl cudnn magma-cuda onednn)
+#  conflicts=(python-pytorch)
+#  provides=(python-pytorch=${pkgver} python-pytorch-cuda=${pkgver})
 
-  cd "${srcdir}/${_pkgname}-opt-cuda"
-  _package
-}
+#  cd "${srcdir}/${_pkgname}-opt-cuda"
+#  _package
+#}
 
-package_python-pytorch-rocm() {
-  pkgdesc="${_pkgdesc} (with ROCm)"
-  depends+=(rocm-hip-sdk hipblaslt roctracer miopen-hip magma-hip onednn)
-  conflicts=(python-pytorch)
-  provides=(python-pytorch=${pkgver})
+#package_python-pytorch-rocm() {
+#  pkgdesc="${_pkgdesc} (with ROCm)"
+#  depends+=(rocm-hip-sdk hipblaslt roctracer miopen-hip magma-hip onednn)
+#  conflicts=(python-pytorch)
+#  provides=(python-pytorch=${pkgver})
 
-  cd "${srcdir}/${_pkgname}-rocm"
-  _package
-}
+#  cd "${srcdir}/${_pkgname}-rocm"
+#  _package
+#}
 
-package_python-pytorch-opt-rocm() {
-  pkgdesc="${_pkgdesc} (with ROCm and AVX2 CPU optimizations)"
-  depends+=(rocm-hip-sdk hipblaslt roctracer miopen-hip magma-hip onednn)
-  conflicts=(python-pytorch)
-  provides=(python-pytorch=${pkgver} python-pytorch-rocm=${pkgver})
+#package_python-pytorch-opt-rocm() {
+#  pkgdesc="${_pkgdesc} (with ROCm and AVX2 CPU optimizations)"
+#  depends+=(rocm-hip-sdk hipblaslt roctracer miopen-hip magma-hip onednn)
+#  conflicts=(python-pytorch)
+#  provides=(python-pytorch=${pkgver} python-pytorch-rocm=${pkgver})
 
-  cd "${srcdir}/${_pkgname}-opt-rocm"
-  _package
-}
+#  cd "${srcdir}/${_pkgname}-opt-rocm"
+#  _package
+#}
 
 # vim:set ts=2 sw=2 et:
