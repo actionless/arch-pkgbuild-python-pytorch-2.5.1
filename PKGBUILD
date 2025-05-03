@@ -12,7 +12,7 @@ pkgname=(
 # When updating pytorch, also check the compatibility table for torchvision
 # https://github.com/pytorch/vision?tab=readme-ov-file#installation
 pkgver=2.5.1
-pkgrel=10
+pkgrel=11
 _pkgdesc='Tensors and Dynamic neural networks in Python with strong GPU acceleration'
 pkgdesc="${_pkgdesc}"
 arch=('x86_64')
@@ -24,7 +24,7 @@ depends=('google-glog' 'gflags' 'opencv' 'openmp' 'openmpi' 'pybind11' 'python' 
          'python-networkx' 'python-filelock')
 # https://github.com/ROCm/aotriton/blob/main/requirements-dev.txt
 _aotriton_deps=('python-iniconfig' 'python-packaging' 'python-pluggy' 'python-wheel' 'python-tqdm' 'python-textual')
-makedepends=('python' 'python-setuptools' 'python-yaml' 'python-numpy' 'cmake' 'cuda' 'gcc13'
+makedepends=('python' 'python-setuptools' 'python-yaml' 'python-numpy' 'cmake' 'cuda' 'gcc14'
              'nccl' 'cudnn' 'git'
              #'rocm-hip-sdk' 'hipblaslt' 'roctracer' 'miopen-hip'
              #'magma-hip'
@@ -208,6 +208,15 @@ prepare() {
 
   # Reduce number of targets for ahead-of-time compilation to fix linker errors
   sed -e '25a-DTARGET_GPUS=Navi31' -i cmake/External/aotriton.cmake
+  for path in {*,}/{*,}/*/CMakeLists.txt ; do
+    sed \
+      -e 's/VERSION 2.8.12/VERSION 3.5/' \
+      -e 's/VERSION 2.8/VERSION 3.5/' \
+      -e 's/VERSION 3.0/VERSION 3.5/' \
+      -e 's/VERSION 3.1\([^0-9]\)/VERSION 3.5\1/' \
+      -e 's/VERSION 3.4/VERSION 3.5/' \
+      -i "$path" || true
+  done
 
   cd "${srcdir}"
 
@@ -251,8 +260,9 @@ _prepare() {
   # export BUILD_SPLIT_CUDA=ON  # modern preferred build, but splits libs and symbols, ABI break
   # export USE_FAST_NVCC=ON  # parallel build with nvcc, spawns too many processes
   export USE_CUPTI_SO=ON  # make sure cupti.so is used as shared lib
-  export CC=/usr/bin/gcc-13
-  export CXX=/usr/bin/g++-13
+  export CC=/usr/bin/gcc-14
+  export CXX=/usr/bin/g++-14
+  export NVCC_CCBIN='/usr/bin/g++-14'
   export CUDAHOSTCXX="${NVCC_CCBIN}"
   export CUDA_HOST_COMPILER="${CUDAHOSTCXX}"
   export CUDA_HOME=/opt/cuda
@@ -270,11 +280,11 @@ _prepare() {
   # https://github.com/ROCm/rocBLAS/blob/9c8a7dfeb3d0a808321541567447b5c1d17cd070/CMakeLists.txt#L114
   export PYTORCH_ROCM_ARCH="gfx900;gfx906:xnack-;gfx908:xnack-;gfx90a:xnack+;gfx90a:xnack-;gfx940;gfx941;gfx942;gfx1010;gfx1012;gfx1030;gfx1100;gfx1101;gfx1102"
   # 1. Compile source code for supported GPU archs in parallel
-  # 2. Use gcc 13 toolchain as ROCm is not compatible with gcc 14.
+  # 2. Use gcc 14 toolchain as ROCm is not compatible with gcc 14.
   # 3. Use --offload-comress to reduce the size of the generated binaries.
   #    Otherwise we run into the 32 bit offset limit, see
   #    https://github.com/ROCm/rocBLAS/issues/1448#issuecomment-2372524901
-  export HIPCC_COMPILE_FLAGS_APPEND="-parallel-jobs=$(nproc) --gcc-install-dir=$(dirname $(gcc-13 -print-libgcc-file-name)) --offload-compress"
+  export HIPCC_COMPILE_FLAGS_APPEND="-parallel-jobs=$(nproc) --gcc-install-dir=$(dirname $(gcc-14 -print-libgcc-file-name)) --offload-compress"
   export HIPCC_LINK_FLAGS_APPEND="-parallel-jobs=$(nproc)"
   # Force aotriton to use system deps
   # export PIP_NO_INDEX=1
